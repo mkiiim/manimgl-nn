@@ -45,6 +45,9 @@ class NeuralNetworkMobject(VGroup):
         VGroup.__init__(self, *args, **kwargs)
         self.layer_sizes = neural_network
 
+        # Initialize the dictionary to store edges
+        self.edges_dict = {}
+
         self.neuron_radius = self.CONFIG["neuron_radius"]
         self.neuron_to_neuron_buff = self.CONFIG["neuron_to_neuron_buff"]
         self.layer_to_layer_buff = self.CONFIG["layer_to_layer_buff"]
@@ -145,6 +148,8 @@ class NeuralNetworkMobject(VGroup):
                     edge_group.add(edge)
                     n1.edges_out.add(edge)
                     n2.edges_in.add(edge)
+                    # Add edge to the dictionary
+                    self.edges_dict[(l1.index, n1.true_index, n2.true_index)] = edge
             self.edge_groups.add(edge_group)
         self.add_to_back(self.edge_groups)
 
@@ -165,6 +170,9 @@ class NeuralNetworkMobject(VGroup):
             stroke_color=self.edge_color,
             stroke_width=self.edge_stroke_width,
         )
+
+    def get_specific_edge(self, start_layer, start_neuron, end_neuron):
+        return self.edges_dict.get((start_layer, start_neuron, end_neuron), None)
 
     def label_inputs(self, l):
         self.output_labels = VGroup()

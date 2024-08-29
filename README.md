@@ -1,3 +1,8 @@
+## Interactively addressing neurons and edges
+  
+Examples:
+In [1]: self.play(myNetwork.get_specific_edge(2,45,3).animate.shift(LEFT*2))                                                   
+In [2]: self.play(myNetwork.layers[0].neurons[1].animate.shift(LEFT*2))
 
 ## Manim and Environment Issues
   
