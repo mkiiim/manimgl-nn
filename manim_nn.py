@@ -6,9 +6,9 @@ import itertools as it
 class myNeuralNetwork(Scene):
     def construct(self):
         myNetwork = NeuralNetworkMobject([28*28, 100, 50, 20, 10])
-        myNetwork.label_inputs('x')
-        myNetwork.label_outputs('\hat{y}')
-        myNetwork.label_outputs_text([str(i) for i in range(10)])
+        myNetwork.label_input_neurons('x')
+        myNetwork.label_output_neurons('\hat{y}')
+        myNetwork.label_output_neurons_with_text([str(i) for i in range(10)])
 
         myNetwork.scale(0.65)
         # self.play(Create(myNetwork))
@@ -16,6 +16,25 @@ class myNeuralNetwork(Scene):
         self.embed()
         # Add the edge animation
         # self.play(myNetwork.animate_edges())
+
+class NeuronReal:
+    def __init__(self, index, rendered_index=None, create_rendered=False, *args, **kwargs):
+        self.index = index
+        self.rendered_index = rendered_index
+        self.edges_in = []
+        self.edges_out = []
+        self.edge_to_neuron = {}  # Dictionary to map edge to target neuron index
+        self.rendered = None
+        if create_rendered:
+            self.rendered = NeuronRendered(index=rendered_index, real_index=index, *args, **kwargs)
+
+class NeuronRendered(Circle):
+    def __init__(self, index, real_index, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.index = index
+        self.real_index = real_index
+        self.edges_in = VGroup()
+        self.edges_out = VGroup()
 
 class NeuralNetworkMobject(VGroup):
     CONFIG = {
@@ -69,20 +88,19 @@ class NeuralNetworkMobject(VGroup):
         self.left_size = self.CONFIG["left_size"]
         self.neuron_fill_opacity = self.CONFIG["neuron_fill_opacity"]
 
-        self.add_neurons()
-        self.add_edges()
+        self.build_neuralnet_layers()
+        self.build_and_add_edges()
         self.add_to_back(self.layers)
 
-    def add_neurons(self):
+    def build_neuralnet_layers(self):
         layers = VGroup(*[
-            self.get_layer(size, index)
+            self.build_layer(size, index)
             for index, size in enumerate(self.layer_sizes)
         ])
-        # layers.arrange_submobjects(RIGHT, buff=self.layer_to_layer_buff)
         layers.arrange(RIGHT, buff=self.layer_to_layer_buff)
         self.layers = layers
         if self.include_output_labels:
-            self.label_outputs_text()
+            self.label_output_neurons_with_text()
 
     def get_nn_fill_color(self, index):
         if index == -1 or index == len(self.layer_sizes) - 1:
@@ -92,41 +110,45 @@ class NeuralNetworkMobject(VGroup):
         else:
             return self.hidden_layer_neuron_color
 
-    def get_layer(self, size, index=-1):
+    def build_layer(self, size, index=-1):
         layer = VGroup()
         layer.index = index  # Add this line to set the index attribute
-        n_neurons = size
-        neurons = VGroup()
-        if n_neurons > self.max_shown_neurons:
-            half_max = self.max_shown_neurons // 2
-            indices_to_draw = list(range(half_max)) + list(range(n_neurons - half_max, n_neurons))
-        else:
-            indices_to_draw = list(range(n_neurons))
 
-        for i in indices_to_draw:
-            neuron = Circle(
+        real_neurons = []
+        rendered_neurons = VGroup()
+
+        if size > self.max_shown_neurons:
+            half_max = self.max_shown_neurons // 2
+            indices_to_draw = list(range(half_max)) + list(range(size - half_max, size))
+        else:
+            indices_to_draw = list(range(size))
+
+        for i in range(size):
+            create_rendered = i in indices_to_draw
+            neuron_real = NeuronReal(
+                index=i,
+                rendered_index=indices_to_draw.index(i) if create_rendered else None,
+                create_rendered=create_rendered,
                 radius=self.neuron_radius,
                 stroke_color=self.get_nn_fill_color(index),
                 stroke_width=self.neuron_stroke_width,
                 fill_color=BLACK,
                 fill_opacity=self.neuron_fill_opacity,
             )
-            neuron.true_index = i
-            neurons.add(neuron)
+            real_neurons.append(neuron_real)
+            if create_rendered:
+                rendered_neurons.add(neuron_real.rendered)
 
-        # neurons.arrange_submobjects(DOWN, buff=self.neuron_to_neuron_buff)
-        neurons.arrange(DOWN, buff=self.neuron_to_neuron_buff)
-        for neuron in neurons:
-            neuron.edges_in = VGroup()
-            neuron.edges_out = VGroup()
-        layer.neurons = neurons
-        layer.add(neurons)
+        rendered_neurons.arrange(DOWN, buff=self.neuron_to_neuron_buff)
+        layer.real_neurons = real_neurons
+        layer.rendered_neurons = rendered_neurons
+        layer.add(rendered_neurons)
 
         if size > self.max_shown_neurons:
             dots = Tex("\\vdots")
-            dots.move_to(neurons)
-            VGroup(*neurons[:len(neurons) // 2]).next_to(dots, UP, MED_SMALL_BUFF)
-            VGroup(*neurons[len(neurons) // 2:]).next_to(dots, DOWN, MED_SMALL_BUFF)
+            dots.move_to(rendered_neurons)
+            VGroup(*rendered_neurons[:len(rendered_neurons) // 2]).next_to(dots, UP, MED_SMALL_BUFF)
+            VGroup(*rendered_neurons[len(rendered_neurons) // 2:]).next_to(dots, DOWN, MED_SMALL_BUFF)
             layer.dots = dots
             layer.add(dots)
             if self.brace_for_large_layers:
@@ -138,22 +160,24 @@ class NeuralNetworkMobject(VGroup):
 
         return layer
 
-    def add_edges(self):
+    def build_and_add_edges(self):
         self.edge_groups = VGroup()
         for l1, l2 in zip(self.layers[:-1], self.layers[1:]):
             edge_group = VGroup()
-            for n1, n2 in it.product(l1.neurons, l2.neurons):
-                if n1.true_index < self.layer_sizes[l1.index] and n2.true_index < self.layer_sizes[l2.index]:
-                    edge = self.get_edge(n1, n2)
+            for n1, n2 in it.product(l1.rendered_neurons, l2.rendered_neurons):
+                if n1.real_index < self.layer_sizes[l1.index] and n2.real_index < self.layer_sizes[l2.index]:
+                    edge = self.create_edge(n1, n2)
                     edge_group.add(edge)
                     n1.edges_out.add(edge)
                     n2.edges_in.add(edge)
                     # Add edge to the dictionary
-                    self.edges_dict[(l1.index, n1.true_index, n2.true_index)] = edge
+                    self.edges_dict[(l1.index, n1.real_index, n2.real_index)] = edge
+                    # Add edge to the to_neuron dictionary in NeuronReal
+                    l1.real_neurons[n1.real_index].edge_to_neuron[n2.real_index] = edge
             self.edge_groups.add(edge_group)
         self.add_to_back(self.edge_groups)
 
-    def get_edge(self, neuron1, neuron2):
+    def create_edge(self, neuron1, neuron2):
         if self.arrow:
             return Arrow(
                 neuron1.get_center(),
@@ -171,59 +195,48 @@ class NeuralNetworkMobject(VGroup):
             stroke_width=self.edge_stroke_width,
         )
 
-    def get_specific_edge(self, start_layer, start_neuron, end_neuron):
+    def retrieve_edge_by_indices(self, start_layer, start_neuron, end_neuron):
         return self.edges_dict.get((start_layer, start_neuron, end_neuron), None)
 
-    def label_inputs(self, l):
+    def label_input_neurons(self, l):
         self.output_labels = VGroup()
-        for neuron in self.layers[0].neurons:
-            label = Tex(f"{l}_"+"{"+f"{neuron.true_index}"+"}")
-            # label.set(height=0.3 * neuron.height)
+        for neuron in self.layers[0].rendered_neurons:
+            label = Tex(f"{l}_"+"{"+f"{neuron.real_index}"+"}")
             label.set_height(0.3 * neuron.get_height())
             label.move_to(neuron)
             self.output_labels.add(label)
         self.add(self.output_labels)
 
-    def label_outputs(self, l):
+    def label_output_neurons(self, l):
         self.output_labels = VGroup()
-        for neuron in self.layers[-1].neurons:
-            label = Tex(f"{l}_"+"{"+f"{neuron.true_index}"+"}")
-            # label.set(height=0.4 * neuron.height)
+        for neuron in self.layers[-1].rendered_neurons:
+            label = Tex(f"{l}_"+"{"+f"{neuron.real_index}"+"}")
             label.set_height(0.4 * neuron.get_height())
             label.move_to(neuron)
             self.output_labels.add(label)
         self.add(self.output_labels)
 
-    def label_outputs_text(self, outputs):
+    def label_output_neurons_with_text(self, outputs):
         self.output_labels = VGroup()
-        for neuron in self.layers[-1].neurons:
-            label = Tex(outputs[neuron.true_index])
-            # label.set(height=0.75*neuron.height)
+        for neuron in self.layers[-1].rendered_neurons:
+            label = Tex(outputs[neuron.real_index])
             label.set_height(0.75 * neuron.get_height())
             label.move_to(neuron)
-            # label.shift((neuron.width + label.width/2)*RIGHT)
             label.shift((neuron.get_width() + (label.get_width() / 2))*RIGHT)
             self.output_labels.add(label)
         self.add(self.output_labels)
 
-    def label_hidden_layers(self, l):
+    def label_hidden_layer_neurons(self, l):
         self.output_labels = VGroup()
         for layer in self.layers[1:-1]:
-            for neuron in layer.neurons:
-                label = Tex(f"{l}_{neuron.true_index}")
+            for neuron in layer.rendered_neurons:
+                label = Tex(f"{l}_{neuron.real_index}")
                 label.set_height(0.4 * neuron.get_height())
                 label.move_to(neuron)
                 self.output_labels.add(label)
         self.add(self.output_labels)
+    
+if __name__ == "__main__":
 
-    def animate_edges(self):
-        animations = []
-        for edge_group in self.edge_groups:
-            for edge in edge_group:
-                animations.append(
-                    edge.animate.scale(1.2).set_stroke(width=edge.get_stroke_width() * 1.2)
-                )
-                animations.append(
-                    edge.animate.scale(1/1.2).set_stroke(width=edge.get_stroke_width() / 1.2)
-                )
-        return AnimationGroup(*animations, lag_ratio=0.1)
+    scene = myNeuralNetwork()
+    scene.run()

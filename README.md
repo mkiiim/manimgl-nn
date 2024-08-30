@@ -1,8 +1,14 @@
 ## Interactively addressing neurons and edges
   
 Examples:
-In [1]: self.play(myNetwork.get_specific_edge(2,45,3).animate.shift(LEFT*2))                                                   
-In [2]: self.play(myNetwork.layers[0].neurons[1].animate.shift(LEFT*2))
+
+```ipython
+# animate the 784th neuron of the 1st layer
+In [1]: self.play(myNetwork.layers[0].real_neurons[783].animate.shift(LEFT*3))
+
+# animate the edge (weight) between the 784th neuron of the 1st layer and the 4th neuron of the next (2nd) layer
+In [2]: self.play(myNetwork.layers[0].real_neurons[783].edge_to_neuron[3].animate.shift(LEFT*3)) 
+```
 
 ## Manim and Environment Issues
   
