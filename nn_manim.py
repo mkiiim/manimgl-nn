@@ -4,18 +4,19 @@ from manimlib import Tex
 import itertools as it
 
 class myNeuralNetwork(Scene):
+    def __init__(self, layer_sizes, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.layer_sizes = layer_sizes
+
     def construct(self):
-        myNetwork = NeuralNetworkMobject([28*28, 100, 50, 20, 10])
+        myNetwork = NeuralNetworkMobject(self.layer_sizes)
         myNetwork.label_input_neurons('x')
         myNetwork.label_output_neurons('\hat{y}')
         myNetwork.label_output_neurons_with_text([str(i) for i in range(10)])
 
         myNetwork.scale(0.65)
-        # self.play(Create(myNetwork))
         self.play(ShowCreation(myNetwork))
         self.embed()
-        # Add the edge animation
-        # self.play(myNetwork.animate_edges())
 
 class NeuronReal:
     def __init__(self, index, rendered_index=None, create_rendered=False, *args, **kwargs):
@@ -102,7 +103,7 @@ class NeuralNetworkMobject(VGroup):
         if self.include_output_labels:
             self.label_output_neurons_with_text()
 
-    def get_nn_fill_color(self, index):
+    def determine_neuron_fill_color(self, index):
         if index == -1 or index == len(self.layer_sizes) - 1:
             return self.output_neuron_color
         if index == 0:
@@ -130,7 +131,7 @@ class NeuralNetworkMobject(VGroup):
                 rendered_index=indices_to_draw.index(i) if create_rendered else None,
                 create_rendered=create_rendered,
                 radius=self.neuron_radius,
-                stroke_color=self.get_nn_fill_color(index),
+                stroke_color=self.determine_neuron_fill_color(index),
                 stroke_width=self.neuron_stroke_width,
                 fill_color=BLACK,
                 fill_opacity=self.neuron_fill_opacity,
@@ -238,5 +239,5 @@ class NeuralNetworkMobject(VGroup):
     
 if __name__ == "__main__":
 
-    scene = myNeuralNetwork()
+    scene = myNeuralNetwork([28*28, 100, 50, 20, 10])
     scene.run()
