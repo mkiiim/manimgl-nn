@@ -1,10 +1,9 @@
 from manimlib import *
-# from manim import MathTex
 from manimlib import Tex
 import itertools as it
 
 class myNeuralNetwork(Scene):
-    def __init__(self, layer_sizes, *args, **kwargs):
+    def __init__(self, layer_sizes = [16, 8, 4, 2], *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.layer_sizes = layer_sizes
 
@@ -14,20 +13,18 @@ class myNeuralNetwork(Scene):
         myNetwork.label_output_neurons('\hat{y}')
         myNetwork.label_output_neurons_with_text([str(i) for i in range(10)])
 
-        myNetwork.scale(0.65)
+        myNetwork.scale(0.7)
         self.play(ShowCreation(myNetwork))
-        self.embed()
+        # self.embed()
 
 class NeuronReal:
-    def __init__(self, index, rendered_index=None, create_rendered=False, *args, **kwargs):
+    def __init__(self, index, index_of_rendered_mobject=None, is_rendered=False, *args, **kwargs):
         self.index = index
-        self.rendered_index = rendered_index
+        self.index_of_rendered_mobject = index_of_rendered_mobject
+        self.edge_to_neuron = {}  # Dictionary to map edge to target neuron index
+        self.rendered_mobject = NeuronRendered(index=index_of_rendered_mobject, real_index=index, *args, **kwargs) if is_rendered else None
         self.edges_in = []
         self.edges_out = []
-        self.edge_to_neuron = {}  # Dictionary to map edge to target neuron index
-        self.rendered = None
-        if create_rendered:
-            self.rendered = NeuronRendered(index=rendered_index, real_index=index, *args, **kwargs)
 
 class NeuronRendered(Circle):
     def __init__(self, index, real_index, *args, **kwargs):
@@ -118,18 +115,24 @@ class NeuralNetworkMobject(VGroup):
         real_neurons = []
         rendered_neurons = VGroup()
 
+        # determine which neurons to draw based on the size of the layer and max_shown_neurons
         if size > self.max_shown_neurons:
             half_max = self.max_shown_neurons // 2
-            indices_to_draw = list(range(half_max)) + list(range(size - half_max, size))
+            first_range = list(range(half_max))
+            second_range = list(range(size - self.max_shown_neurons + half_max, size))
+            indices_to_draw = first_range + second_range
         else:
             indices_to_draw = list(range(size))
+        layer.indices_to_draw = indices_to_draw
 
+        # Create the "real" neurons
         for i in range(size):
-            create_rendered = i in indices_to_draw
+            
+            # adds "real" neurons to the layer
             neuron_real = NeuronReal(
                 index=i,
-                rendered_index=indices_to_draw.index(i) if create_rendered else None,
-                create_rendered=create_rendered,
+                index_of_rendered_mobject=indices_to_draw.index(i) if (i in indices_to_draw) else None,
+                is_rendered=(i in indices_to_draw),
                 radius=self.neuron_radius,
                 stroke_color=self.determine_neuron_fill_color(index),
                 stroke_width=self.neuron_stroke_width,
@@ -137,13 +140,16 @@ class NeuralNetworkMobject(VGroup):
                 fill_opacity=self.neuron_fill_opacity,
             )
             real_neurons.append(neuron_real)
-            if create_rendered:
-                rendered_neurons.add(neuron_real.rendered)
+            
+            # adds any corresponding "rendered" neurons to the layer
+            if i in indices_to_draw:
+                rendered_neurons.add(neuron_real.rendered_mobject)
 
         rendered_neurons.arrange(DOWN, buff=self.neuron_to_neuron_buff)
         layer.real_neurons = real_neurons
         layer.rendered_neurons = rendered_neurons
         layer.add(rendered_neurons)
+        
 
         if size > self.max_shown_neurons:
             dots = Tex("\\vdots")
@@ -237,7 +243,90 @@ class NeuralNetworkMobject(VGroup):
                 self.output_labels.add(label)
         self.add(self.output_labels)
     
+class my2DInput(Scene):
+    def __init__(self, rows = 3, cols = 3, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.rows = rows
+        self.cols = cols
+
+    def construct(self):
+        myGrid = NeuralNetwork2DInputMobject(self.rows, self.cols)
+        self.play(ShowCreation(myGrid))
+        self.embed()
+
+class NeuralNetwork2DInputMobject(VGroup):
+    def __init__(self, rows, cols, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.rows = rows
+        self.cols = cols
+        self.grid = []
+        self.create_grid(rows, cols)
+
+    def create_grid(self, rows, cols):
+        for i in range(rows):
+            row = VGroup()
+            for j in range(cols):
+                cell = Square(side_length=1, fill_color = None, fill_opacity = 1, stroke_color=GREEN, stroke_width=1, stroke_opacity=.5)
+                # Invert the y-coordinate to place row 0 at the top
+                cell.move_to(np.array([j - cols / 2, (rows / 2 - i - 1), 0]))
+                row.add(cell)
+            self.add(row)
+            self.grid.append(row)
+        self.center()
+        self.scale_to_fit_left_third()
+
+    def scale_to_fit_left_third(self):
+        # Scale the grid to fit within the left-third of the canvas
+        self.scale(0.4)
+        # Move the grid to the left-third of the canvas
+        self.to_edge(LEFT)
+
+    def get_cell(self, row, col):
+        if 0 <= row < self.rows and 0 <= col < self.cols:
+            return self.grid[row][col]
+        else:
+            raise IndexError("Grid index out of range")
+
+class myMnist(Scene):
+    def __init__(self, layer_sizes = [28*28, 100, 50, 20, 10], *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.layer_sizes = layer_sizes  
+
+    def construct(self):
+        # Create the neural network visualization
+        myNetwork = NeuralNetworkMobject(self.layer_sizes)
+        myNetwork.label_input_neurons('x')
+        myNetwork.label_output_neurons('\hat{y}')
+        myNetwork.label_output_neurons_with_text([str(i) for i in range(10)])
+        myNetwork.scale(0.65)
+        myNetwork.to_edge(RIGHT)  # Position the neural network on the right
+
+        # Create the 2D image grid visualization
+        square_side_length = math.floor(math.sqrt(self.layer_sizes[0]))
+        myGrid = NeuralNetwork2DInputMobject(square_side_length, square_side_length)
+        myGrid.scale_to_fit_left_third()  # Ensure the grid fits within the left-third
+
+        # Add both elements to the scene
+        self.play(ShowCreation(myNetwork), ShowCreation(myGrid))
+        self.embed()
+
+    # Instantiate the neural network model
+
+
+    def usr_load_data(self):
+        print("Loading data from MNIST dataset")
+
+
+    def animate_weights(self, layer_index, weights):
+        print(f"Animating weights for layer {layer_index}")
+
 if __name__ == "__main__":
 
-    scene = myNeuralNetwork([28*28, 100, 50, 20, 10])
-    scene.run()
+    # scene01 = myNeuralNetwork([28*28, 100, 50, 20, 10])
+    # scene01.run()
+
+    # scene02 = my2DInput(28, 28)
+    # scene02.run()
+
+    scene03 = myMnist([20,13,11,1])
+    scene03.run()
