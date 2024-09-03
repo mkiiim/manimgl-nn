@@ -5,7 +5,7 @@ import numpy as np
 from keras.datasets import mnist
 from keras.utils import to_categorical
 
-sys.path.append('/Users/mark/Projects/Neural-Network-withmath/')
+sys.path.append('/Users/mark/Projects/Neural-Network/')
 from network import NeuralNetwork
 from dense import Dense
 from activations import Sigmoid

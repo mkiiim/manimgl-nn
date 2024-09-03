@@ -40,7 +40,7 @@ Key requirements:
 - ManimGL v1.6.1
 - ffmpeg (via brew)
 - latex (i'm using mactex via pkg installer)
-- for mnist demo (`manimgl_nn_mnist.py`), you'll need my neural-net repository (to be shared shortly)
+- for mnist demo (`manimgl_nn_mnist.py`), you'll need my neural-net repository [Neural-Network](https://github.com/mkiiim/Neural-Network)
   
 NOTE - Had to reinstall miniforge 3.24.0 in order to solve environment and dependency issues including:
 - `python` version issues (suggested use of `python==3.10` which is default for miniforge `3.24.0` )
