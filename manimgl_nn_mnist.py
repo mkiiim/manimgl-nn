@@ -1,5 +1,5 @@
 import sys
-from nn_manim import *
+from manimgl_nn import *
 
 import numpy as np
 from keras.datasets import mnist
